@@ -47,3 +47,5 @@ C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\bin\Debug\net9.0\Microsoft.Exten
 C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\bin\Debug\net9.0\Microsoft.Extensions.ObjectPool.dll
 C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\bin\Debug\net9.0\Microsoft.Extensions.VectorData.Abstractions.dll
 C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\bin\Debug\net9.0\Microsoft.ML.Tokenizers.dll
+C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\obj\Debug\net9.0\ExtensionsAI.sourcelink.json
+C:\Workplace\MicroAgent\MicroAgent\ExtensionsAI\bin\Debug\net9.0\Microsoft.Extensions.DependencyInjection.dll

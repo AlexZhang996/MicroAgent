@@ -1,8 +1,10 @@
 ﻿using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using OpenAI;
 using OpenAI.Chat;
 using System.ClientModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -20,7 +22,7 @@ namespace ExtensionsAI
 
             OpenAIClient aiClient = new OpenAIClient (new ApiKeyCredential("ak-3855a409097a4487bd7080383dac3442"), options);
          
-            IChatClient chatClient = aiClient.GetChatClient("gpt-5.6-luna").AsIChatClient();
+            IChatClient chatClient = aiClient.GetChatClient("gpt-6-sol").AsIChatClient();
             //chatClient.AsIChatClient().GetResponseAsync("Hello, how are you?").ContinueWith(task =>
             //{
             //    if (task.IsCompletedSuccessfully)
@@ -76,28 +78,28 @@ namespace ExtensionsAI
             //Console.WriteLine($"Product Name: {response.Result.ProductName}");
             //Console.WriteLine($"Product Name: {response.Result.ProductCode}");
 
-            chatClient = chatClient.AsBuilder().UseFunctionInvocation(configure:options =>
-                {
-                    options.FunctionInvoker = async (context, cancellationToken) =>
-                    {
+            //chatClient = chatClient.AsBuilder().UseFunctionInvocation(configure:options =>
+            //    {
+            //        options.FunctionInvoker = async (context, cancellationToken) =>
+            //        {
 
-                        Console.WriteLine($"   内容: {context.CallContent}");
-                        Console.WriteLine($"   函数名: {context.Function.Name}");
-                        Console.WriteLine($"   参数: {JsonSerializer.Serialize(context.Arguments)}");
+            //            Console.WriteLine($"   内容: {context.CallContent}");
+            //            Console.WriteLine($"   函数名: {context.Function.Name}");
+            //            Console.WriteLine($"   参数: {JsonSerializer.Serialize(context.Arguments)}");
 
-                        var result = await context.Function.InvokeAsync(context.Arguments, cancellationToken);
-
-
-                        Console.WriteLine($"   结果: {result}");
+            //            var result = await context.Function.InvokeAsync(context.Arguments, cancellationToken);
 
 
-                        return result;
+            //            Console.WriteLine($"   结果: {result}");
 
 
-                    };
-                  }
+            //            return result;
 
-                ).Build();
+
+            //        };
+            //      }
+
+            //    ).Build();
             //try
             //{
             //    await foreach (var chumk in chatClient.GetStreamingResponseAsync($" What's the ProductInfo of this review? {message}", chatOptions))
@@ -111,10 +113,148 @@ namespace ExtensionsAI
             //}
 
 
-            ChatResponse response = await chatClient.GetResponseAsync($"{message}", chatOptions);
-            //Console.WriteLine($"Product: {JsonSerializer.Serialize(response.Result)}");
-            Console.WriteLine($"Product: {response.Text}");
+            //ChatResponse response = await chatClient.GetResponseAsync($"{message}", chatOptions);
+            ////Console.WriteLine($"Product: {JsonSerializer.Serialize(response.Result)}");
+            //Console.WriteLine($"Product: {response.Text}");
 
+
+            ChatClientMetadata? metadata = chatClient.GetService<ChatClientMetadata>();
+            if (metadata != null)
+            {
+                Console.WriteLine($"Provider: {metadata.ProviderName}");
+                Console.WriteLine($"DefaultModelId: {metadata.DefaultModelId}");
+                Console.WriteLine($"ProviderUri: {metadata.ProviderUri}");
+            }
+
+
+            //获取 IEmbeddingGenerator 实例
+
+            IServiceProvider serviceProvider = new ServiceCollection()
+                .AddSingleton<OpenAIClient>(aiClient)
+                .AddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
+                {
+                    var client = sp.GetRequiredService<OpenAIClient>();
+                    return client.GetEmbeddingClient("text-embedding-3-small").AsIEmbeddingGenerator();
+                })
+                .BuildServiceProvider();
+
+            var documents = new[]
+            {
+                "Microsoft.Extensions.AI 为 .NET 提供统一 AI 抽象。",
+                "向量嵌入可以用来执行语义搜索和相似度匹配。"
+            };
+
+
+            //IEmbeddingGenerator<string,Embedding<float>> embeddingGenerator = aiClient.GetEmbeddingClient("text-embedding-3-small").AsIEmbeddingGenerator();
+
+
+            //创建Function
+
+
+            //var tools = AIFunctionFactory.Create(([Description("城市名称")] string city) => {
+            //    int temperature = Random.Shared.Next(-5, 36);
+            //    bool willRain = Random.Shared.NextDouble() > 0.6;
+            //    return $"The current weather in {city} is {(willRain ? "raining" : "sunny")} with a temperature of {temperature}°C.";
+
+            //},"GetCityWeather", "查询指定城市的实时天气");
+
+            //chatClient= chatClient.AsBuilder().UseFunctionInvocation(configure:options =>
+            //{
+            //    options.FunctionInvoker = async (context, cancellationToken) =>
+            //    {
+            //        Console.WriteLine($"   内容: {context.CallContent}");
+            //        Console.WriteLine($"   函数名: {context.Function.Name}");
+            //        Console.WriteLine($"   参数: {JsonSerializer.Serialize(context.Arguments)}");
+            //        var result = await context.Function.InvokeAsync(context.Arguments, cancellationToken);
+            //        Console.WriteLine($"   结果: {result}");
+            //        return result;
+            //    };
+            //}).Build();
+
+            //List<AITool> toolsList = new List<AITool> { tools };
+            //string message2 = "上海今天气温多少?";
+
+            //chatOptions = new ChatOptions();
+            //chatOptions.Tools= toolsList;
+            //chatOptions.ToolMode= ChatToolMode.RequireAny; //设置工具模式为自动，模型将根据需要调用工具来辅助生成回复。
+
+            //ChatResponse response = await chatClient.GetResponseAsync($"{message2}");
+            //Console.WriteLine($"weather: {response.Text}");
+
+
+
+            #region 集合工具
+
+            int iterationCount = 0;
+            int functionCallCount = 0;
+            // 创建模拟工具集
+            var monitoringTools = new[]
+            {
+                AIFunctionFactory.Create((string city) =>
+                {
+                    Thread.Sleep(500); // 模拟API延迟
+                    return new { Temperature = Random.Shared.Next(15, 35), Humidity = Random.Shared.Next(40, 80) };
+                }, "get_weather", "获取指定城市的天气信息"),
+
+                AIFunctionFactory.Create((string city) =>
+                {
+                    Thread.Sleep(300);
+                    return new { Hotels = Random.Shared.Next(50, 200), AvgPrice = Random.Shared.Next(300, 1500) };
+                }, "get_hotels", "查询指定城市的酒店数量和平均价格"),
+
+                AIFunctionFactory.Create((int temperature) =>
+                {
+                    return temperature switch
+                    {
+                        < 15 => "建议穿冬装，携带保暖衣物",
+                        < 25 => "建议穿春秋装，温度适宜",
+                        _ => "建议穿夏装，注意防晒"
+                    };
+                }, "suggest_clothing", "根据温度推荐穿搭")
+            };
+
+
+            var monitoringOptions = new ChatOptions
+            {
+                ToolMode = ChatToolMode.Auto,
+                AllowMultipleToolCalls = true,
+                Tools = monitoringTools
+            };
+            var  monitoredClient = chatClient.AsBuilder().UseFunctionInvocation(configure: options =>
+            {
+                options.AllowConcurrentInvocation = true;
+                options.MaximumIterationsPerRequest = 10;
+                options.FunctionInvoker = async (context, cancellationToken) =>
+                {
+                    functionCallCount++;
+                    var sw = Stopwatch.StartNew();
+
+                    Console.WriteLine($"   [函数调用 #{functionCallCount}]");
+                    Console.WriteLine($"   函数名: {context.Function.Name}");
+                    Console.WriteLine($"   参数: {JsonSerializer.Serialize(context.Arguments)}");
+
+                    var result = await context.Function.InvokeAsync(context.Arguments, cancellationToken);
+                    sw.Stop();
+
+                    Console.WriteLine($"   结果: {result}");
+                    Console.WriteLine($"   耗时: {sw.ElapsedMilliseconds}ms");
+
+                    return result;
+                };
+            }).Build();
+            var monitoringResult = await monitoredClient.GetResponseAsync(
+                "帮我查询北京和上海的天气，并根据北京的温度推荐穿搭",
+                monitoringOptions
+            );
+
+            Console.WriteLine("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+            Console.WriteLine("✅ 最终响应:");
+            Console.WriteLine(monitoringResult.Text);
+            Console.WriteLine($"\n📊 统计: 共 {iterationCount} 次迭代，{functionCallCount} 次函数调用");
+
+            #endregion
         }
+
+
     }
 }
